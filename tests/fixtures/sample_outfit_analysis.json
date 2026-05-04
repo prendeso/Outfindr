@@ -1,0 +1,49 @@
+{
+  "items": [
+    {
+      "category": "outerwear",
+      "description": "cropped black leather moto jacket",
+      "color": "black",
+      "pattern": "solid",
+      "material": "leather",
+      "brand_guess": null,
+      "confidence": 0.92,
+      "search_terms": [
+        "black leather moto jacket cropped",
+        "cropped biker jacket black leather",
+        "asymmetric zip moto jacket"
+      ]
+    },
+    {
+      "category": "bottom",
+      "description": "high-waisted faded blue straight-leg jeans",
+      "color": "blue",
+      "pattern": "solid",
+      "material": "denim",
+      "brand_guess": null,
+      "confidence": 0.88,
+      "search_terms": [
+        "high waisted straight leg jeans light wash",
+        "faded blue straight jeans women"
+      ]
+    },
+    {
+      "category": "footwear",
+      "description": "white leather low-top sneakers",
+      "color": "white",
+      "pattern": "solid",
+      "material": "leather",
+      "brand_guess": null,
+      "confidence": 0.85,
+      "search_terms": [
+        "white leather low top sneakers",
+        "minimalist white sneakers"
+      ]
+    }
+  ],
+  "overall_style": "streetwear",
+  "overall_confidence": 0.88,
+  "notes": null,
+  "model_id": "claude-haiku-4-5-20251001",
+  "prompt_version": "vision_system_v1"
+}

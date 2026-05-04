@@ -1,0 +1,39 @@
+[project]
+name = "outfindr"
+version = "0.1.0"
+description = "Reddit outfit-ID bot. Summon u/outfindr on a post; it identifies the clothing and replies with shopping links."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Outfindr" }]
+dependencies = [
+    "anthropic>=0.39.0",
+    "praw>=7.7.1",
+    "requests>=2.32.0",
+    "pillow>=10.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-mock>=3.14.0",
+]
+
+[project.scripts]
+outfindr = "outfindr.cli:main"
+outfindr-worker = "outfindr.worker:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/outfindr"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/outfindr/prompts" = "outfindr/prompts"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+pythonpath = ["src"]

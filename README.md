@@ -1,0 +1,48 @@
+# Outfindr
+
+Reddit outfit-ID bot. Summon `u/outfindr` on a post with an image; it identifies the
+clothing items and replies with a structured breakdown plus shopping search links.
+
+## Architecture
+
+```
+src/outfindr/
+├── core/        # Platform-agnostic. Imports zero platform SDKs.
+├── adapters/    # One file per platform. MVP ships only reddit_bot.
+├── prompts/     # Static prompt text, versioned in filenames.
+├── cli.py       # Local image/URL → JSON, for evals
+└── worker.py    # Entrypoint: instantiates the Reddit adapter
+```
+
+The core/adapters split is the reusability invariant: adding a new platform
+(Bluesky, Discord, web upload) means a new file in `adapters/` and zero
+changes to `core/`.
+
+## Local development
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+
+cp .env.example .env  # fill in keys
+pytest
+```
+
+## Running the CLI eval
+
+```bash
+python -m outfindr.cli path/to/image.jpg
+python -m outfindr.cli https://i.redd.it/xxx.jpg
+```
+
+## Running the bot locally
+
+```bash
+python -m outfindr.worker
+```
+
+## Deployment
+
+Railway worker. See `railway.toml` and `Procfile`. Volume mounted at `/data`
+holds the SQLite cache + reply log.
