@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Outfindr{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/">Outfindr</a>
+    <nav>
+      <a href="/">Identify</a>
+      <a href="/history">History</a>
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    <small>Outfit identification is best-effort. Suggestions are guesses, not endorsements.</small>
+  </footer>
+</body>
+</html>

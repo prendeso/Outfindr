@@ -23,11 +23,24 @@ changes to `core/`.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev,web]"
 
 cp .env.example .env  # fill in keys
 pytest
 ```
+
+## Running the web eval UI
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export DATABASE_PATH=./outfindr-dev.db
+uvicorn outfindr.web.app:app --reload --port 8000
+```
+
+Open http://localhost:8000. Upload a local image or paste an image URL to get
+a structured outfit breakdown plus shopping search links. Repeat submissions
+of the same image hit the SQLite cache and skip the vision call. Visit
+`/history` for recent runs.
 
 ## Running the CLI eval
 

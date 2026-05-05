@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Identify an outfit</h1>
+<p class="lede">Upload an image or paste an image URL. Outfindr will return a structured breakdown plus shopping search links for each item.</p>
+
+<form action="/identify" method="post" enctype="multipart/form-data" class="card">
+  <label class="field">
+    <span>Upload an image</span>
+    <input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif">
+  </label>
+
+  <div class="or">— or —</div>
+
+  <label class="field">
+    <span>Paste an image URL</span>
+    <input type="url" name="url" placeholder="https://i.redd.it/..." autocomplete="off">
+  </label>
+
+  <button type="submit">Identify</button>
+</form>
+{% endblock %}

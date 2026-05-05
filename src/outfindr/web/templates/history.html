@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Outfindr — History{% endblock %}
+{% block content %}
+<h1>Recent runs</h1>
+
+{% if entries %}
+<table class="history">
+  <thead>
+    <tr>
+      <th>When</th>
+      <th>SHA</th>
+      <th>Items</th>
+      <th>Style</th>
+      <th>Confidence</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for entry in entries %}
+    <tr>
+      <td>{{ entry.created }}</td>
+      <td><code>{{ entry.sha_short }}</code></td>
+      <td>{{ entry.item_count }}</td>
+      <td>{{ entry.overall_style or "—" }}</td>
+      <td>{{ "%.0f"|format(entry.overall_confidence * 100) }}%</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No runs yet. <a href="/">Identify your first image →</a></p>
+{% endif %}
+{% endblock %}

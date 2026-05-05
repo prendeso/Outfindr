@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Outfindr — Result{% endblock %}
+{% block content %}
+<div class="result">
+  <div class="result-image">
+    <img src="{{ image_src }}" alt="Submitted image">
+    <p class="meta">
+      sha <code>{{ sha[:12] }}</code>
+      {% if cache_hit %}<span class="tag">cache hit</span>{% else %}<span class="tag tag-fresh">fresh analysis</span>{% endif %}
+    </p>
+  </div>
+
+  <div class="result-body">
+    <h1>{{ analysis.overall_style or "Outfit" }}</h1>
+    <p class="meta">overall confidence {{ "%.0f"|format(analysis.overall_confidence * 100) }}%</p>
+
+    {% if analysis.notes %}
+    <p class="notes">{{ analysis.notes }}</p>
+    {% endif %}
+
+    {% if analysis.items %}
+    <ol class="items">
+      {% for item in analysis.items %}
+      {% set links = links_for(item) %}
+      <li class="item">
+        <h2>{{ loop.index }}. {{ item.category|title }} — {{ item.description }}</h2>
+        <dl class="attrs">
+          {% if item.color %}<dt>color</dt><dd>{{ item.color }}</dd>{% endif %}
+          {% if item.pattern %}<dt>pattern</dt><dd>{{ item.pattern }}</dd>{% endif %}
+          {% if item.material %}<dt>material</dt><dd>{{ item.material }}</dd>{% endif %}
+          {% if item.brand_guess %}<dt>brand guess</dt><dd>{{ item.brand_guess }}</dd>{% endif %}
+          <dt>confidence</dt><dd>{{ "%.0f"|format(item.confidence * 100) }}%</dd>
+        </dl>
+        <div class="links">
+          <a href="{{ links.google }}" target="_blank" rel="noopener">Google</a>
+          <a href="{{ links.google_shopping }}" target="_blank" rel="noopener">Shopping</a>
+          <a href="{{ links.amazon }}" target="_blank" rel="noopener">Amazon</a>
+        </div>
+        {% if item.search_terms %}
+        <p class="search-terms">
+          <em>search terms:</em>
+          {% for term in item.search_terms %}<code>{{ term }}</code>{% if not loop.last %} · {% endif %}{% endfor %}
+        </p>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p>No clothing items identified with enough confidence to display.</p>
+    {% endif %}
+
+    <details class="raw">
+      <summary>Raw JSON</summary>
+      <pre>{{ analysis.to_json() }}</pre>
+    </details>
+
+    <p><a href="/">← Identify another</a></p>
+  </div>
+</div>
+{% endblock %}
