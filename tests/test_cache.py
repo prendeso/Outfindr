@@ -90,3 +90,24 @@ def test_opt_outs(db_conn):
     )
     assert cache.is_opted_out(db_conn, "reddit", "alice")
     assert not cache.is_opted_out(db_conn, "reddit", "bob")
+
+
+def test_record_opt_out_and_in(db_conn):
+    cache.record_opt_out(db_conn, "reddit", "alice")
+    assert cache.is_opted_out(db_conn, "reddit", "alice")
+    cache.record_opt_in(db_conn, "reddit", "alice")
+    assert not cache.is_opted_out(db_conn, "reddit", "alice")
+
+
+def test_record_opt_out_idempotent(db_conn):
+    cache.record_opt_out(db_conn, "reddit", "alice")
+    cache.record_opt_out(db_conn, "reddit", "alice")  # second call is a no-op
+    rows = db_conn.execute(
+        "SELECT * FROM opt_outs WHERE platform = 'reddit' AND user_id = 'alice'"
+    ).fetchall()
+    assert len(rows) == 1
+
+
+def test_record_opt_in_when_not_opted_out_is_noop(db_conn):
+    cache.record_opt_in(db_conn, "reddit", "ghost")
+    assert not cache.is_opted_out(db_conn, "reddit", "ghost")

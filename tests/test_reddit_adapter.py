@@ -120,13 +120,15 @@ def test_resolve_returns_none_for_unknown():
 
 # ---------- handle() flow ----------
 
-def test_skips_non_comment(db_conn):
-    item = _mention(was_comment=False)
+def test_non_comment_routes_to_dm_handler(db_conn):
+    """A non-comment inbox item is a DM. Vision is never called for DMs."""
+    item = _pm(subject="hello", body="what is this?")
     analyze = MagicMock()
     a = _adapter(db_conn, analyze_fn=analyze)
     a.handle(item)
     analyze.assert_not_called()
-    item.reply.assert_not_called()
+    # DMs do get a reply (help text), unlike outfit-ID mentions.
+    item.reply.assert_called_once()
 
 
 def test_skips_non_username_mention(db_conn):
@@ -267,3 +269,80 @@ def test_failed_download_skips(db_conn):
     analyze.assert_not_called()
     item.reply.assert_not_called()
     assert cache.reply_exists(db_conn, "reddit", item.id)
+
+
+# ---------- DM / private message flow ----------
+
+def _pm(*, item_id="pm1", subject="opt out", body="", author_name="alice"):
+    item = MagicMock()
+    item.id = item_id
+    item.was_comment = False
+    item.subject = subject
+    item.body = body
+    item.author = SimpleNamespace(name=author_name) if author_name else None
+    item.reply.return_value = SimpleNamespace(id="reply-id")
+    return item
+
+
+def test_opt_out_pm_records_user_and_replies(db_conn):
+    item = _pm(subject="opt out", author_name="alice")
+    a = _adapter(db_conn)
+    a.handle(item)
+
+    assert cache.is_opted_out(db_conn, "reddit", "alice")
+    item.reply.assert_called_once()
+    body = item.reply.call_args.args[0]
+    assert "opted out" in body.lower()
+
+
+def test_opt_out_in_body_works(db_conn):
+    item = _pm(subject="hello", body="please opt out, thanks", author_name="bob")
+    a = _adapter(db_conn)
+    a.handle(item)
+    assert cache.is_opted_out(db_conn, "reddit", "bob")
+
+
+def test_unsubscribe_keyword_opts_out(db_conn):
+    item = _pm(subject="unsubscribe", body="", author_name="carol")
+    a = _adapter(db_conn)
+    a.handle(item)
+    assert cache.is_opted_out(db_conn, "reddit", "carol")
+
+
+def test_opt_in_pm_removes_opt_out(db_conn):
+    cache.record_opt_out(db_conn, "reddit", "alice")
+    item = _pm(subject="opt in", author_name="alice")
+    a = _adapter(db_conn)
+    a.handle(item)
+
+    assert not cache.is_opted_out(db_conn, "reddit", "alice")
+    body = item.reply.call_args.args[0]
+    assert "opted back in" in body.lower()
+
+
+def test_unrecognized_pm_replies_with_help(db_conn):
+    item = _pm(subject="hi", body="how does this thing work?", author_name="dan")
+    a = _adapter(db_conn)
+    a.handle(item)
+
+    body = item.reply.call_args.args[0]
+    assert "outfindr" in body.lower()
+    assert "u/outfindr" in body
+    # Did not opt them out.
+    assert not cache.is_opted_out(db_conn, "reddit", "dan")
+
+
+def test_pm_idempotent(db_conn):
+    item = _pm(subject="opt out", author_name="alice")
+    a = _adapter(db_conn)
+    a.handle(item)
+    a.handle(item)  # same id
+    assert item.reply.call_count == 1
+
+
+def test_pm_without_author_still_handled(db_conn):
+    """A deleted-account DM has no author; we should still reply gracefully."""
+    item = _pm(author_name=None, subject="hello")
+    a = _adapter(db_conn)
+    a.handle(item)
+    item.reply.assert_called_once()

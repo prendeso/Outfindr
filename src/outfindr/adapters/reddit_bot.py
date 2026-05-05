@@ -76,11 +76,13 @@ class RedditAdapter:
             log.exception("error handling inbox item id=%s", getattr(item, "id", "?"))
 
     def handle(self, item: Any) -> None:
-        if not getattr(item, "was_comment", False):
+        if getattr(item, "was_comment", False):
+            if getattr(item, "subject", None) == "username mention":
+                self._handle_mention(item)
             return
-        if getattr(item, "subject", None) != "username mention":
-            return
+        self._handle_message(item)
 
+    def _handle_mention(self, item: Any) -> None:
         item_id = item.id
         if cache.reply_exists(self.conn, PLATFORM, item_id):
             log.info("already replied to %s, skipping", item_id)
@@ -158,6 +160,79 @@ class RedditAdapter:
         )
         _safe_mark_read(item)
         log.info("replied to %s with %d items", item_id, len(analysis.items))
+
+    def _handle_message(self, item: Any) -> None:
+        item_id = item.id
+        if cache.reply_exists(self.conn, PLATFORM, item_id):
+            _safe_mark_read(item)
+            return
+
+        author_name = _author_name(item)
+        text = _message_text(item)
+        intent = _classify_message(text)
+
+        if intent == "opt_out":
+            if author_name:
+                cache.record_opt_out(self.conn, PLATFORM, author_name)
+            reply_text = OPT_OUT_REPLY
+        elif intent == "opt_in":
+            if author_name:
+                cache.record_opt_in(self.conn, PLATFORM, author_name)
+            reply_text = OPT_IN_REPLY
+        else:
+            reply_text = HELP_REPLY
+
+        reply = item.reply(reply_text) if hasattr(item, "reply") else None
+        reply_id = getattr(reply, "id", None) if reply is not None else None
+
+        cache.insert_reply(
+            self.conn,
+            platform=PLATFORM,
+            source_id=item_id,
+            post_id=None,
+            requesting_user=author_name,
+            image_sha256=None,
+            reply_id=reply_id,
+            response_text=reply_text,
+            confidence=None,
+        )
+        _safe_mark_read(item)
+        log.info("handled DM from %s as %s", author_name, intent)
+
+
+OPT_OUT_REPLY = (
+    "You're opted out. I won't reply to mentions involving you on Reddit. "
+    "Reply 'opt in' anytime to undo."
+)
+
+OPT_IN_REPLY = "You're opted back in. I'll respond to mentions normally."
+
+HELP_REPLY = (
+    "I'm Outfindr, a bot that identifies clothing in images. "
+    "Mention me with `u/outfindr` in a comment on a post that contains an image "
+    "and I'll reply with a breakdown of the outfit and shopping search links. "
+    "Reply 'opt out' to this DM to be ignored, 'opt in' to undo."
+)
+
+_OPT_OUT_PHRASES = ("opt out", "optout", "unsubscribe", "stop")
+_OPT_IN_PHRASES = ("opt in", "optin", "subscribe", "resubscribe")
+
+
+def _classify_message(text: str) -> str:
+    lowered = text.lower()
+    if any(p in lowered for p in _OPT_OUT_PHRASES):
+        return "opt_out"
+    if any(p in lowered for p in _OPT_IN_PHRASES):
+        return "opt_in"
+    return "help"
+
+
+def _message_text(item: Any) -> str:
+    parts = [
+        getattr(item, "subject", "") or "",
+        getattr(item, "body", "") or "",
+    ]
+    return " ".join(parts).strip()
 
 
 def resolve_image_url(submission: Any) -> str | None:

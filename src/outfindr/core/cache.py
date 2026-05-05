@@ -95,3 +95,17 @@ def is_opted_out(conn: sqlite3.Connection, platform: str, user_id: str) -> bool:
         (platform, user_id),
     ).fetchone()
     return row is not None
+
+
+def record_opt_out(conn: sqlite3.Connection, platform: str, user_id: str) -> None:
+    conn.execute(
+        "INSERT OR IGNORE INTO opt_outs (platform, user_id) VALUES (?, ?)",
+        (platform, user_id),
+    )
+
+
+def record_opt_in(conn: sqlite3.Connection, platform: str, user_id: str) -> None:
+    conn.execute(
+        "DELETE FROM opt_outs WHERE platform = ? AND user_id = ?",
+        (platform, user_id),
+    )
