@@ -24,8 +24,29 @@ SCHEMA
   ],
   "overall_style": "streetwear" | "business casual" | "athleisure" | "formal" | "y2k" | "preppy" | "grunge" | "minimalist" | "boho" | null,
   "overall_confidence": 0.0-1.0,
-  "notes": "one short sentence flagging anything unusual (poor lighting, partially obscured items, multiple subjects), or null"
+  "notes": "one short sentence flagging anything unusual (poor lighting, partially obscured items, multiple subjects, query target not visible), or null"
 }
+
+USER QUERY HANDLING
+The user may include a free-text query alongside the image (e.g. "the yellow
+jacket", "second person from the left", "just the shoes", "what brand are
+those jeans?"). When a query is provided:
+
+- Use the query to disambiguate. Spatial cues ("left", "right", "first",
+  "second", "front", "background") narrow which person to focus on. Item
+  cues (color, type, position on body) narrow which garment to focus on.
+- Still return all visible clothing on the focal subject above the confidence
+  floor, but place the items the user explicitly asked about FIRST in the
+  items array.
+- If the query asks about a brand specifically, raise effort on
+  `brand_guess` for the asked-about item, but never fabricate. Null is still
+  the right answer if no logo is visible.
+- If the query asks about something not visible (e.g. shoes are cropped out,
+  the named subject is not in the frame), set `notes` to explain and return
+  an empty items array with `overall_confidence` reflecting uncertainty.
+
+When no query is provided, identify every visible clothing item on the
+primary subject as usual.
 
 CALIBRATION
 - Confidence 0.9+: clearly visible, well-lit, unambiguous.
@@ -33,7 +54,8 @@ CALIBRATION
 - Confidence 0.5-0.7: partially obscured, blurry, or ambiguous.
 - Confidence below 0.5: do not include the item.
 - overall_confidence is the minimum of: average item confidence, and your
-  confidence that the image actually shows an outfit at all.
+  confidence that the image actually shows an outfit at all (or matches the
+  user's query, when one was provided).
 
 BRAND GUESSING
 - Only set brand_guess when a logo, monogram, or signature design is clearly

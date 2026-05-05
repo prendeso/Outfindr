@@ -15,6 +15,11 @@ from .core import vision
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Identify the outfit in an image.")
     parser.add_argument("source", help="path to a local image file, or an image URL")
+    parser.add_argument(
+        "--query",
+        default=None,
+        help="optional free-text question (e.g. 'the yellow jacket', 'second from left')",
+    )
     args = parser.parse_args(argv)
 
     image_bytes, content_type = _load(args.source)
@@ -26,6 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     analysis = vision.analyze_outfit(
         image_bytes,
         content_type=content_type,
+        user_query=args.query,
         api_key=api_key,
     )
     print(analysis.to_json())

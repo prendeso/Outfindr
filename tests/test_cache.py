@@ -21,6 +21,27 @@ def test_cache_keyed_by_model_id(db_conn, sample_analysis):
     assert cache.get(db_conn, "sha-a", "model-y", "v1") is None
 
 
+def test_cache_keyed_by_query_hash(db_conn, sample_analysis):
+    qa = cache.query_hash("the yellow jacket")
+    qb = cache.query_hash("the second person from the left")
+    cache.put(db_conn, "sha-a", "model-x", "v1", sample_analysis, query_hash=qa)
+
+    # same image + different query => miss
+    assert cache.get(db_conn, "sha-a", "model-x", "v1", query_hash=qb) is None
+    # same image + same query => hit
+    assert cache.get(db_conn, "sha-a", "model-x", "v1", query_hash=qa) is not None
+    # same image + no query => miss (empty query is its own bucket)
+    assert cache.get(db_conn, "sha-a", "model-x", "v1") is None
+
+
+def test_query_hash_normalizes_whitespace_and_case():
+    assert cache.query_hash("  Hello  ") == cache.query_hash("hello")
+    assert cache.query_hash(None) == ""
+    assert cache.query_hash("") == ""
+    assert cache.query_hash("   ") == ""
+    assert cache.query_hash("nonempty") != ""
+
+
 def test_miss_returns_none(db_conn):
     assert cache.get(db_conn, "nope", "m", "p") is None
 

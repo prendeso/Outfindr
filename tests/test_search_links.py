@@ -61,3 +61,24 @@ def test_url_encoded():
     # should include the ampersand back when decoded.
     q = parse_qs(urlparse(links["google"]).query)["q"][0]
     assert q == "pink & blue tie-dye t-shirt"
+
+
+def test_amazon_affiliate_tag_appended_when_provided():
+    item = _item()
+    links = links_for(item, amazon_affiliate_tag="myaffil-20")
+    qs = parse_qs(urlparse(links["amazon"]).query)
+    assert qs["tag"] == ["myaffil-20"]
+    # Other links unchanged
+    assert "tag" not in parse_qs(urlparse(links["google"]).query)
+
+
+def test_amazon_no_tag_by_default():
+    item = _item()
+    links = links_for(item)
+    assert "tag" not in parse_qs(urlparse(links["amazon"]).query)
+
+
+def test_amazon_empty_tag_string_is_ignored():
+    item = _item()
+    links = links_for(item, amazon_affiliate_tag="")
+    assert "tag" not in parse_qs(urlparse(links["amazon"]).query)

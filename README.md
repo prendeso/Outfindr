@@ -47,6 +47,10 @@ of the same image hit the SQLite cache and skip the vision call. Visit
 ```bash
 python -m outfindr.cli path/to/image.jpg
 python -m outfindr.cli https://i.redd.it/xxx.jpg
+
+# narrow with a free-text question
+python -m outfindr.cli https://i.redd.it/xxx.jpg --query "the yellow jacket"
+python -m outfindr.cli photo.jpg --query "second person from the left"
 ```
 
 ## Running the bot locally

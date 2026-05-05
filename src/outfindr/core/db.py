@@ -11,9 +11,10 @@ CREATE TABLE IF NOT EXISTS vision_cache (
     image_sha256    TEXT NOT NULL,
     model_id        TEXT NOT NULL,
     prompt_version  TEXT NOT NULL,
+    query_hash      TEXT NOT NULL DEFAULT '',
     analysis_json   TEXT NOT NULL,
     created         TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (image_sha256, model_id, prompt_version)
+    PRIMARY KEY (image_sha256, model_id, prompt_version, query_hash)
 );
 
 CREATE TABLE IF NOT EXISTS bot_replies (

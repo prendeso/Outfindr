@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass
 
 VISION_MODEL_ID = "claude-haiku-4-5-20251001"
-PROMPT_VERSION = "vision_system_v1"
+PROMPT_VERSION = "vision_system_v2"
 
 
 @dataclass(frozen=True)
@@ -21,6 +21,7 @@ class Settings:
     confidence_floor: float
     daily_reply_budget: int
     log_level: str
+    amazon_affiliate_tag: str | None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -36,6 +37,7 @@ class Settings:
             confidence_floor=float(os.environ.get("CONFIDENCE_FLOOR", "0.55")),
             daily_reply_budget=int(os.environ.get("DAILY_REPLY_BUDGET", "200")),
             log_level=os.environ.get("LOG_LEVEL", "INFO"),
+            amazon_affiliate_tag=(os.environ.get("AMAZON_AFFILIATE_TAG") or None),
         )
 
 

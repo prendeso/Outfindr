@@ -133,3 +133,63 @@ def test_history_lists_cached_runs(
     assert r.status_code == 200
     assert sha_a[:12] in r.text
     assert sha_b[:12] in r.text
+
+
+def test_query_field_passed_to_vision(
+    client, monkeypatch, sample_image_bytes, sample_analysis
+):
+    analyze = MagicMock(return_value=sample_analysis)
+    monkeypatch.setattr("outfindr.web.app.vision.analyze_outfit", analyze)
+
+    r = client.post(
+        "/identify",
+        files={"file": ("photo.jpg", sample_image_bytes, "image/jpeg")},
+        data={"query": "the yellow jacket"},
+    )
+    assert r.status_code == 200, r.text
+    assert analyze.call_args.kwargs["user_query"] == "the yellow jacket"
+    assert "You asked" in r.text
+    assert "yellow jacket" in r.text
+
+
+def test_query_separates_cache_buckets(
+    client, monkeypatch, sample_image_bytes, sample_analysis
+):
+    analyze = MagicMock(return_value=sample_analysis)
+    monkeypatch.setattr("outfindr.web.app.vision.analyze_outfit", analyze)
+
+    client.post(
+        "/identify",
+        files={"file": ("p.jpg", sample_image_bytes, "image/jpeg")},
+        data={"query": "the yellow jacket"},
+    )
+    client.post(
+        "/identify",
+        files={"file": ("p.jpg", sample_image_bytes, "image/jpeg")},
+        data={"query": "the shoes"},
+    )
+    # Different queries on the same image must invoke vision twice.
+    assert analyze.call_count == 2
+
+    # Repeating the first query is a cache hit, no third call.
+    client.post(
+        "/identify",
+        files={"file": ("p.jpg", sample_image_bytes, "image/jpeg")},
+        data={"query": "the yellow jacket"},
+    )
+    assert analyze.call_count == 2
+
+
+def test_amazon_affiliate_tag_appears_in_rendered_links(
+    client, monkeypatch, sample_image_bytes, sample_analysis
+):
+    monkeypatch.setenv("AMAZON_AFFILIATE_TAG", "webtag-20")
+    analyze = MagicMock(return_value=sample_analysis)
+    monkeypatch.setattr("outfindr.web.app.vision.analyze_outfit", analyze)
+
+    r = client.post(
+        "/identify",
+        files={"file": ("photo.jpg", sample_image_bytes, "image/jpeg")},
+    )
+    assert r.status_code == 200
+    assert "tag=webtag-20" in r.text

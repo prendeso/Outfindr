@@ -19,7 +19,12 @@ LOW_CONFIDENCE_REPLY = (
 )
 
 
-def format_markdown(analysis: OutfitAnalysis, *, platform: Platform = "reddit") -> str:
+def format_markdown(
+    analysis: OutfitAnalysis,
+    *,
+    platform: Platform = "reddit",
+    amazon_affiliate_tag: str | None = None,
+) -> str:
     if not analysis.items:
         return LOW_CONFIDENCE_REPLY
 
@@ -29,7 +34,14 @@ def format_markdown(analysis: OutfitAnalysis, *, platform: Platform = "reddit") 
         lines.append("")
 
     for idx, item in enumerate(analysis.items, start=1):
-        lines.append(_format_item(idx, item, platform=platform))
+        lines.append(
+            _format_item(
+                idx,
+                item,
+                platform=platform,
+                amazon_affiliate_tag=amazon_affiliate_tag,
+            )
+        )
         lines.append("")
 
     if analysis.notes:
@@ -40,7 +52,13 @@ def format_markdown(analysis: OutfitAnalysis, *, platform: Platform = "reddit") 
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _format_item(idx: int, item: OutfitItem, *, platform: Platform) -> str:
+def _format_item(
+    idx: int,
+    item: OutfitItem,
+    *,
+    platform: Platform,
+    amazon_affiliate_tag: str | None,
+) -> str:
     header = f"**{idx}. {item.category.title()}** — {item.description}"
     bits: list[str] = []
     if item.color:
@@ -53,7 +71,7 @@ def _format_item(idx: int, item: OutfitItem, *, platform: Platform) -> str:
         bits.append(f"brand guess: {item.brand_guess}")
     bits.append(f"confidence: {item.confidence:.0%}")
 
-    links = links_for(item)
+    links = links_for(item, amazon_affiliate_tag=amazon_affiliate_tag)
     link_md = (
         f"[Google]({links['google']}) · "
         f"[Shopping]({links['google_shopping']}) · "

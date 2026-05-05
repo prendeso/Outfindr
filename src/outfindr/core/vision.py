@@ -25,29 +25,38 @@ class VisionParseError(Exception):
     """Raised when the model's response is not valid JSON or doesn't match the schema."""
 
 
-_SYSTEM_PROMPT_CACHE: str | None = None
+_SYSTEM_PROMPT_CACHE: dict[str, str] = {}
 
 
 def _system_prompt() -> str:
-    global _SYSTEM_PROMPT_CACHE
-    if _SYSTEM_PROMPT_CACHE is None:
-        _SYSTEM_PROMPT_CACHE = (
+    version = config.PROMPT_VERSION
+    cached = _SYSTEM_PROMPT_CACHE.get(version)
+    if cached is None:
+        cached = (
             resources.files("outfindr.prompts")
-            .joinpath("vision_system_v1.txt")
+            .joinpath(f"{version}.txt")
             .read_text(encoding="utf-8")
         )
-    return _SYSTEM_PROMPT_CACHE
+        _SYSTEM_PROMPT_CACHE[version] = cached
+    return cached
 
 
 def analyze_outfit(
     image_bytes: bytes,
     *,
     content_type: str,
+    user_query: str | None = None,
     client: anthropic.Anthropic | None = None,
     api_key: str | None = None,
     max_tokens: int = 1500,
 ) -> OutfitAnalysis:
-    """Analyze a single image and return an OutfitAnalysis."""
+    """Analyze a single image and return an OutfitAnalysis.
+
+    `user_query`, when given, is appended to the user message after the image
+    so the model can disambiguate ("the yellow jacket", "second from left",
+    etc.). It does NOT go in the system prompt — the system prompt is the
+    cache target, the user query is dynamic.
+    """
     if content_type not in ALLOWED_CONTENT_TYPES:
         raise VisionParseError(f"unsupported content type: {content_type}")
 
@@ -55,6 +64,20 @@ def analyze_outfit(
         client = anthropic.Anthropic(api_key=api_key)
 
     image_b64 = base64.standard_b64encode(image_bytes).decode("ascii")
+
+    user_content: list[dict[str, Any]] = [
+        {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": content_type,
+                "data": image_b64,
+            },
+        }
+    ]
+    cleaned_query = (user_query or "").strip()
+    if cleaned_query:
+        user_content.append({"type": "text", "text": f"User query: {cleaned_query}"})
 
     response = client.messages.create(
         model=config.VISION_MODEL_ID,
@@ -66,21 +89,7 @@ def analyze_outfit(
                 "cache_control": {"type": "ephemeral"},
             }
         ],
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": content_type,
-                            "data": image_b64,
-                        },
-                    }
-                ],
-            }
-        ],
+        messages=[{"role": "user", "content": user_content}],
     )
 
     text = _extract_text(response)

@@ -9,13 +9,14 @@ from outfindr.adapters import reddit_bot
 from outfindr.adapters.reddit_bot import (
     DownloadedImage,
     RedditAdapter,
+    extract_query,
     resolve_image_url,
 )
 from outfindr.core import cache, config
 
 
-def _settings() -> config.Settings:
-    return config.Settings(
+def _settings(**overrides) -> config.Settings:
+    defaults = dict(
         anthropic_api_key="sk-test",
         reddit_client_id="cid",
         reddit_client_secret="csec",
@@ -27,7 +28,10 @@ def _settings() -> config.Settings:
         confidence_floor=0.55,
         daily_reply_budget=200,
         log_level="INFO",
+        amazon_affiliate_tag=None,
     )
+    defaults.update(overrides)
+    return config.Settings(**defaults)
 
 
 def _mention(
@@ -37,12 +41,14 @@ def _mention(
     author_name="alice",
     was_comment=True,
     subject="username mention",
+    body="u/outfindr",
 ):
     submission = submission or _submission()
     item = MagicMock()
     item.id = item_id
     item.was_comment = was_comment
     item.subject = subject
+    item.body = body
     item.author = SimpleNamespace(name=author_name) if author_name else None
     item.submission = submission
     item.reply.return_value = SimpleNamespace(id="reply-id")
@@ -346,3 +352,65 @@ def test_pm_without_author_still_handled(db_conn):
     a = _adapter(db_conn)
     a.handle(item)
     item.reply.assert_called_once()
+
+
+# ---------- query extraction & plumbing ----------
+
+def test_extract_query_strips_mention_only():
+    assert extract_query("u/outfindr", "outfindr") is None
+
+
+def test_extract_query_returns_remainder():
+    assert extract_query("u/outfindr the yellow jacket", "outfindr") == "the yellow jacket"
+
+
+def test_extract_query_handles_slash_prefix_and_extra_whitespace():
+    assert extract_query("hey  /u/outfindr   the   shoes", "outfindr") == "hey the shoes"
+
+
+def test_extract_query_case_insensitive():
+    assert extract_query("U/Outfindr what brand?", "outfindr") == "what brand?"
+
+
+def test_query_passed_to_vision(db_conn, sample_analysis):
+    analyze = MagicMock(return_value=sample_analysis)
+    item = _mention(body="u/outfindr the yellow jacket")
+    a = _adapter(db_conn, analyze_fn=analyze)
+    a.handle(item)
+
+    kwargs = analyze.call_args.kwargs
+    assert kwargs["user_query"] == "the yellow jacket"
+
+
+def test_no_query_means_user_query_is_none(db_conn, sample_analysis):
+    analyze = MagicMock(return_value=sample_analysis)
+    item = _mention(body="u/outfindr")
+    a = _adapter(db_conn, analyze_fn=analyze)
+    a.handle(item)
+    assert analyze.call_args.kwargs["user_query"] is None
+
+
+def test_cache_keyed_by_query_for_mentions(db_conn, sample_analysis):
+    """Same image, different queries should produce two vision calls."""
+    analyze = MagicMock(return_value=sample_analysis)
+    a = _adapter(db_conn, analyze_fn=analyze)
+
+    a.handle(_mention(item_id="m1", body="u/outfindr the yellow jacket"))
+    a.handle(_mention(item_id="m2", body="u/outfindr the shoes"))
+
+    assert analyze.call_count == 2
+
+
+def test_affiliate_tag_propagates_to_reply_body(db_conn, sample_analysis):
+    analyze = MagicMock(return_value=sample_analysis)
+    a = RedditAdapter(
+        settings=_settings(amazon_affiliate_tag="myaff-20"),
+        conn=db_conn,
+        reddit=MagicMock(),
+        analyze_fn=analyze,
+        download_fn=lambda _u: DownloadedImage(b"img", "image/jpeg"),
+    )
+    item = _mention()
+    a.handle(item)
+    body = item.reply.call_args.args[0]
+    assert "tag=myaff-20" in body

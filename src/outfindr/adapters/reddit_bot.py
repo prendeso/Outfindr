@@ -5,6 +5,7 @@ Imports `praw` only here. `core/` stays platform-agnostic.
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 import time
 from dataclasses import dataclass
@@ -120,16 +121,26 @@ class RedditAdapter:
             _safe_mark_read(item)
             return
 
+        user_query = extract_query(getattr(item, "body", "") or "", self.settings.bot_username)
+        qhash = cache.query_hash(user_query)
+
         sha = cache.sha256_bytes(downloaded.data)
-        cached = cache.get(self.conn, sha, config.VISION_MODEL_ID, config.PROMPT_VERSION)
+        cached = cache.get(
+            self.conn,
+            sha,
+            config.VISION_MODEL_ID,
+            config.PROMPT_VERSION,
+            query_hash=qhash,
+        )
         if cached is not None:
             analysis = cached
-            log.info("cache hit for sha=%s", sha[:12])
+            log.info("cache hit for sha=%s query=%r", sha[:12], user_query)
         else:
             try:
                 analysis = self._analyze_fn(
                     downloaded.data,
                     content_type=downloaded.content_type,
+                    user_query=user_query,
                     api_key=self.settings.anthropic_api_key,
                 )
             except vision.VisionParseError:
@@ -137,12 +148,23 @@ class RedditAdapter:
                 _record_skip(self.conn, item, post_id, "vision parse error")
                 _safe_mark_read(item)
                 return
-            cache.put(self.conn, sha, config.VISION_MODEL_ID, config.PROMPT_VERSION, analysis)
+            cache.put(
+                self.conn,
+                sha,
+                config.VISION_MODEL_ID,
+                config.PROMPT_VERSION,
+                analysis,
+                query_hash=qhash,
+            )
 
         if analysis.overall_confidence < self.settings.confidence_floor:
             reply_md = formatter.LOW_CONFIDENCE_REPLY
         else:
-            reply_md = formatter.format_markdown(analysis, platform="reddit")
+            reply_md = formatter.format_markdown(
+                analysis,
+                platform="reddit",
+                amazon_affiliate_tag=self.settings.amazon_affiliate_tag,
+            )
 
         reply = item.reply(reply_md)
         reply_id = getattr(reply, "id", None) if reply is not None else None
@@ -233,6 +255,18 @@ def _message_text(item: Any) -> str:
         getattr(item, "body", "") or "",
     ]
     return " ".join(parts).strip()
+
+
+def extract_query(body: str, bot_username: str) -> str | None:
+    """Strip the `u/<bot>` mention from the comment body and return the rest.
+
+    Returns None if nothing meaningful remains (caller treats that as
+    "no query, identify everything").
+    """
+    pattern = re.compile(rf"\s*/?u/{re.escape(bot_username)}\b\s*", re.IGNORECASE)
+    cleaned = pattern.sub(" ", body or "").strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned or None
 
 
 def resolve_image_url(submission: Any) -> str | None:

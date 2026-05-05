@@ -65,13 +65,22 @@ def create_app() -> FastAPI:
         request: Request,
         file: UploadFile | None = None,
         url: str = Form(default=""),
+        query: str = Form(default=""),
     ) -> Any:
         image_bytes, content_type, image_src = await _load_input(file, url)
+        user_query = query.strip() or None
+        qhash = cache.query_hash(user_query)
 
         conn = _connect()
         try:
             sha = cache.sha256_bytes(image_bytes)
-            analysis = cache.get(conn, sha, config.VISION_MODEL_ID, config.PROMPT_VERSION)
+            analysis = cache.get(
+                conn,
+                sha,
+                config.VISION_MODEL_ID,
+                config.PROMPT_VERSION,
+                query_hash=qhash,
+            )
             cache_hit = analysis is not None
             if analysis is None:
                 api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -84,14 +93,23 @@ def create_app() -> FastAPI:
                     analysis = vision.analyze_outfit(
                         image_bytes,
                         content_type=content_type,
+                        user_query=user_query,
                         api_key=api_key,
                     )
                 except vision.VisionParseError as exc:
                     raise HTTPException(status_code=502, detail=str(exc)) from exc
-                cache.put(conn, sha, config.VISION_MODEL_ID, config.PROMPT_VERSION, analysis)
+                cache.put(
+                    conn,
+                    sha,
+                    config.VISION_MODEL_ID,
+                    config.PROMPT_VERSION,
+                    analysis,
+                    query_hash=qhash,
+                )
         finally:
             conn.close()
 
+        affiliate_tag = os.environ.get("AMAZON_AFFILIATE_TAG") or None
         return templates.TemplateResponse(
             request,
             "result.html",
@@ -100,7 +118,10 @@ def create_app() -> FastAPI:
                 "image_src": image_src,
                 "sha": sha,
                 "cache_hit": cache_hit,
-                "links_for": search_links.links_for,
+                "user_query": user_query,
+                "links_for": lambda item: search_links.links_for(
+                    item, amazon_affiliate_tag=affiliate_tag
+                ),
             },
         )
 

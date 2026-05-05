@@ -94,3 +94,40 @@ def test_raises_on_empty_text(sample_image_bytes):
     client.messages.create.return_value = SimpleNamespace(content=[])
     with pytest.raises(VisionParseError, match="no text content"):
         analyze_outfit(sample_image_bytes, content_type="image/jpeg", client=client)
+
+
+def test_user_query_appended_after_image(sample_analysis_dict, sample_image_bytes):
+    client = _make_client(json.dumps(sample_analysis_dict))
+    analyze_outfit(
+        sample_image_bytes,
+        content_type="image/jpeg",
+        user_query="the yellow jacket",
+        client=client,
+    )
+    user_msg = client.messages.create.call_args.kwargs["messages"][0]
+    blocks = user_msg["content"]
+    assert blocks[0]["type"] == "image"
+    assert blocks[1]["type"] == "text"
+    assert "yellow jacket" in blocks[1]["text"]
+
+
+def test_no_user_query_means_image_only(sample_analysis_dict, sample_image_bytes):
+    client = _make_client(json.dumps(sample_analysis_dict))
+    analyze_outfit(sample_image_bytes, content_type="image/jpeg", client=client)
+    blocks = client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert len(blocks) == 1
+    assert blocks[0]["type"] == "image"
+
+
+def test_blank_user_query_is_treated_as_no_query(
+    sample_analysis_dict, sample_image_bytes
+):
+    client = _make_client(json.dumps(sample_analysis_dict))
+    analyze_outfit(
+        sample_image_bytes,
+        content_type="image/jpeg",
+        user_query="   ",
+        client=client,
+    )
+    blocks = client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert len(blocks) == 1

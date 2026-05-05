@@ -55,3 +55,13 @@ def test_reddit_markdown_uses_link_syntax(sample_analysis):
     # markdown link: [text](url)
     assert "[Google](" in out
     assert "[Amazon](" in out
+
+
+def test_amazon_affiliate_tag_in_rendered_output(sample_analysis):
+    out = format_markdown(sample_analysis, amazon_affiliate_tag="myaffil-20")
+    assert "tag=myaffil-20" in out
+
+
+def test_no_affiliate_tag_means_clean_amazon_links(sample_analysis):
+    out = format_markdown(sample_analysis)
+    assert "tag=" not in out

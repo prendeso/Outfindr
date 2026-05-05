@@ -108,6 +108,13 @@ button:hover { filter: brightness(1.1); }
   border: 1px solid var(--border);
 }
 .notes { color: var(--muted); font-style: italic; }
+.query {
+  background: var(--panel);
+  border-left: 3px solid var(--accent);
+  padding: 0.5rem 0.8rem;
+  border-radius: 4px;
+  margin: 0.8rem 0;
+}
 
 .raw { margin-top: 1.5rem; }
 .raw pre {

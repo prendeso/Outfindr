@@ -1,4 +1,4 @@
-"""Vision-result cache and bot-reply log keyed by (sha, model, prompt version)."""
+"""Vision-result cache and bot-reply log keyed by (sha, model, prompt, query)."""
 from __future__ import annotations
 
 import hashlib
@@ -11,16 +11,27 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def query_hash(query: str | None) -> str:
+    """Stable hash of a user query for cache keying. Empty string for no query."""
+    cleaned = (query or "").strip()
+    if not cleaned:
+        return ""
+    return hashlib.sha256(cleaned.lower().encode("utf-8")).hexdigest()
+
+
 def get(
     conn: sqlite3.Connection,
     image_sha256: str,
     model_id: str,
     prompt_version: str,
+    *,
+    query_hash: str = "",
 ) -> OutfitAnalysis | None:
     row = conn.execute(
         "SELECT analysis_json FROM vision_cache "
-        "WHERE image_sha256 = ? AND model_id = ? AND prompt_version = ?",
-        (image_sha256, model_id, prompt_version),
+        "WHERE image_sha256 = ? AND model_id = ? AND prompt_version = ? "
+        "AND query_hash = ?",
+        (image_sha256, model_id, prompt_version, query_hash),
     ).fetchone()
     if row is None:
         return None
@@ -33,12 +44,14 @@ def put(
     model_id: str,
     prompt_version: str,
     analysis: OutfitAnalysis,
+    *,
+    query_hash: str = "",
 ) -> None:
     conn.execute(
         "INSERT OR REPLACE INTO vision_cache "
-        "(image_sha256, model_id, prompt_version, analysis_json) "
-        "VALUES (?, ?, ?, ?)",
-        (image_sha256, model_id, prompt_version, analysis.to_json()),
+        "(image_sha256, model_id, prompt_version, query_hash, analysis_json) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (image_sha256, model_id, prompt_version, query_hash, analysis.to_json()),
     )
 
 
