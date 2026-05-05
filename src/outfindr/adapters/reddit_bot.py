@@ -121,7 +121,11 @@ class RedditAdapter:
             _safe_mark_read(item)
             return
 
-        user_query = extract_query(getattr(item, "body", "") or "", self.settings.bot_username)
+        user_query = build_mention_context(
+            submission,
+            getattr(item, "body", "") or "",
+            self.settings.bot_username,
+        )
         qhash = cache.query_hash(user_query)
 
         sha = cache.sha256_bytes(downloaded.data)
@@ -267,6 +271,37 @@ def extract_query(body: str, bot_username: str) -> str | None:
     cleaned = pattern.sub(" ", body or "").strip()
     cleaned = re.sub(r"\s+", " ", cleaned)
     return cleaned or None
+
+
+SELFTEXT_MAX_CHARS = 1000
+
+
+def build_mention_context(
+    submission: Any,
+    comment_body: str,
+    bot_username: str,
+) -> str | None:
+    """Combine the post title, selftext, and triggering comment into a
+    labeled multi-line context string the v3 system prompt knows how to
+    parse. Returns None if all parts are empty.
+    """
+    parts: list[str] = []
+
+    title = (getattr(submission, "title", "") or "").strip()
+    if title:
+        parts.append(f"Post title: {title}")
+
+    selftext = (getattr(submission, "selftext", "") or "").strip()
+    if selftext:
+        if len(selftext) > SELFTEXT_MAX_CHARS:
+            selftext = selftext[:SELFTEXT_MAX_CHARS].rstrip() + "..."
+        parts.append(f"Post body: {selftext}")
+
+    comment = extract_query(comment_body, bot_username)
+    if comment:
+        parts.append(f"Comment from requester: {comment}")
+
+    return "\n".join(parts) if parts else None
 
 
 def resolve_image_url(submission: Any) -> str | None:

@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass
 
 VISION_MODEL_ID = "claude-haiku-4-5-20251001"
-PROMPT_VERSION = "vision_system_v2"
+PROMPT_VERSION = "vision_system_v3"
 
 
 @dataclass(frozen=True)

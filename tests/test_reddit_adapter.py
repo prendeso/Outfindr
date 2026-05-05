@@ -9,6 +9,7 @@ from outfindr.adapters import reddit_bot
 from outfindr.adapters.reddit_bot import (
     DownloadedImage,
     RedditAdapter,
+    build_mention_context,
     extract_query,
     resolve_image_url,
 )
@@ -61,6 +62,8 @@ def _submission(
     sub_id="sub1",
     preview=None,
     media_metadata=None,
+    title="",
+    selftext="",
 ):
     s = MagicMock()
     s.id = sub_id
@@ -68,6 +71,8 @@ def _submission(
     s.over_18 = over_18
     s.preview = preview
     s.media_metadata = media_metadata
+    s.title = title
+    s.selftext = selftext
     return s
 
 
@@ -372,22 +377,91 @@ def test_extract_query_case_insensitive():
     assert extract_query("U/Outfindr what brand?", "outfindr") == "what brand?"
 
 
+# ---------- build_mention_context ----------
+
+def test_build_mention_context_combines_title_body_and_comment():
+    sub = _submission(
+        title="Need help finding this jacket",
+        selftext="Saw it in a 90s catalog, anyone know the brand?",
+    )
+    out = build_mention_context(sub, "u/outfindr the yellow one", "outfindr")
+    assert out is not None
+    assert "Post title: Need help finding this jacket" in out
+    assert "Post body: Saw it in a 90s catalog" in out
+    assert "Comment from requester: the yellow one" in out
+
+
+def test_build_mention_context_skips_empty_parts():
+    sub = _submission(title="Just a title", selftext="")
+    out = build_mention_context(sub, "u/outfindr", "outfindr")
+    assert out == "Post title: Just a title"
+
+
+def test_build_mention_context_returns_none_when_all_empty():
+    sub = _submission(title="", selftext="")
+    assert build_mention_context(sub, "u/outfindr", "outfindr") is None
+
+
+def test_build_mention_context_truncates_long_selftext():
+    long_text = "abc " * 500  # 2000 chars
+    sub = _submission(title="t", selftext=long_text)
+    out = build_mention_context(sub, "", "outfindr")
+    assert out is not None
+    assert out.endswith("...")
+    # Bounded near the SELFTEXT_MAX_CHARS=1000 cap, plus the labels and ellipsis.
+    assert len(out) < 1100
+
+
 def test_query_passed_to_vision(db_conn, sample_analysis):
     analyze = MagicMock(return_value=sample_analysis)
     item = _mention(body="u/outfindr the yellow jacket")
     a = _adapter(db_conn, analyze_fn=analyze)
     a.handle(item)
 
-    kwargs = analyze.call_args.kwargs
-    assert kwargs["user_query"] == "the yellow jacket"
+    user_query = analyze.call_args.kwargs["user_query"]
+    assert user_query is not None
+    assert "the yellow jacket" in user_query
+    assert "Comment from requester:" in user_query
 
 
-def test_no_query_means_user_query_is_none(db_conn, sample_analysis):
+def test_no_query_no_post_text_means_user_query_is_none(db_conn, sample_analysis):
     analyze = MagicMock(return_value=sample_analysis)
-    item = _mention(body="u/outfindr")
+    item = _mention(body="u/outfindr", submission=_submission(title="", selftext=""))
     a = _adapter(db_conn, analyze_fn=analyze)
     a.handle(item)
     assert analyze.call_args.kwargs["user_query"] is None
+
+
+def test_post_title_passed_to_vision(db_conn, sample_analysis):
+    """The actual question often lives in the title, not the comment."""
+    analyze = MagicMock(return_value=sample_analysis)
+    item = _mention(
+        body="u/outfindr",
+        submission=_submission(title="Need help finding this yellow jacket"),
+    )
+    a = _adapter(db_conn, analyze_fn=analyze)
+    a.handle(item)
+
+    user_query = analyze.call_args.kwargs["user_query"]
+    assert "Need help finding this yellow jacket" in user_query
+    assert "Post title:" in user_query
+
+
+def test_post_body_passed_to_vision(db_conn, sample_analysis):
+    analyze = MagicMock(return_value=sample_analysis)
+    item = _mention(
+        body="u/outfindr",
+        submission=_submission(
+            title="Help",
+            selftext="Saw this in a 90s catalog, anyone know the brand?",
+        ),
+    )
+    a = _adapter(db_conn, analyze_fn=analyze)
+    a.handle(item)
+
+    user_query = analyze.call_args.kwargs["user_query"]
+    assert "Post body:" in user_query
+    assert "90s catalog" in user_query
 
 
 def test_cache_keyed_by_query_for_mentions(db_conn, sample_analysis):
